@@ -27,6 +27,7 @@ Requires:
 import sys
 from huggingface_hub import ModelCard
 import re
+from urllib.parse import urlparse
 
 
 def main() -> None:  # pragma: no cover
@@ -57,6 +58,45 @@ def main() -> None:  # pragma: no cover
         print("\n=== URLs found ===")
         for url in unique_urls:
             print(url)
+
+        # Filter out arxiv, colab, and GitHub links.
+        EXCLUDED_KEYWORDS = (
+            "arxiv.org",
+            "ar5iv.org",
+            "colab.research.google.com",
+            "github.com",
+        )
+
+        filtered_urls = [
+            u for u in unique_urls if not any(k in urlparse(u).netloc for k in EXCLUDED_KEYWORDS)
+        ]
+
+        if filtered_urls:
+            print("\n=== Fetching summaries via r.jina.ai ===")
+
+            import time
+            import requests
+
+            # NOTE: The free r.jina.ai endpoint allows ~15 requests/min (4s/request).
+            JINA_TOKEN = "jina_9d5517f4235c47eeb6441889ab773ffd_s2uEm0MrfTXdoBC6nSdMBna66ZT"
+            headers = {"Authorization": f"Bearer {JINA_TOKEN}"}
+
+            for idx, original_url in enumerate(filtered_urls):
+                proxy_url = f"https://r.jina.ai/{original_url}"
+                try:
+                    resp = requests.get(proxy_url, headers=headers, timeout=15)
+                    resp.raise_for_status()
+                    print(f"\n--- {original_url} ---")
+                    print(resp.text)
+                except Exception as err:  # pylint: disable=broad-except
+                    print(f"❌ Failed to fetch '{original_url}': {err}")
+
+                # Respect rate limit: sleep ~4 seconds between calls (<=15/minute)
+                if idx < len(filtered_urls) - 1:
+                    time.sleep(4.1)
+        else:
+            print("\n=== URLs found ===")
+            print("No URLs detected in the model card.")
     else:
         print("\n=== URLs found ===")
         print("No URLs detected in the model card.")
