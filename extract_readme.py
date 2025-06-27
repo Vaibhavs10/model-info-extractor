@@ -1,7 +1,7 @@
 #!/usr/bin/env -S uv run --script
 # /// script
 # requires-python = ">=3.8"
-# dependencies = ["huggingface_hub"]
+# dependencies = ["huggingface_hub", "requests"]
 # ///
 """
 extract_readme.py
@@ -44,9 +44,8 @@ def main() -> None:  # pragma: no cover
         print(f"❌ Failed to load model card for '{model_id}': {err}")
         sys.exit(1)
 
-    # Print the markdown content excluding the metadata header.
-    print("\n=== README markdown ===")
-    print(card.text)
+    # Prepare container for combined output (README first).
+    combined_sections: list[str] = ["=== README markdown ===", card.text]
 
     # Extract and display all URLs found in the markdown body.
     url_pattern = re.compile(r"https?://[^\s\)\]\>\'\"`]+")
@@ -55,9 +54,10 @@ def main() -> None:  # pragma: no cover
     if urls:
         # Preserve order while removing duplicates.
         unique_urls = list(dict.fromkeys(urls))
-        print("\n=== URLs found ===")
-        for url in unique_urls:
-            print(url)
+
+        # Record URLs section for the final output.
+        combined_sections.append("\n=== URLs found ===")
+        combined_sections.extend(unique_urls)
 
         # Filter out arxiv, colab, and GitHub links.
         EXCLUDED_KEYWORDS = (
@@ -72,34 +72,32 @@ def main() -> None:  # pragma: no cover
         ]
 
         if filtered_urls:
-            print("\n=== Fetching summaries via r.jina.ai ===")
-
             import time
             import requests
 
+            combined_sections.append("\n=== Summaries via r.jina.ai ===")
+
             # NOTE: The free r.jina.ai endpoint allows ~15 requests/min (4s/request).
-            JINA_TOKEN = "jina_9d5517f4235c47eeb6441889ab773ffd_s2uEm0MrfTXdoBC6nSdMBna66ZT"
-            headers = {"Authorization": f"Bearer {JINA_TOKEN}"}
 
             for idx, original_url in enumerate(filtered_urls):
                 proxy_url = f"https://r.jina.ai/{original_url}"
                 try:
-                    resp = requests.get(proxy_url, headers=headers, timeout=15)
+                    resp = requests.get(proxy_url, timeout=15)
                     resp.raise_for_status()
-                    print(f"\n--- {original_url} ---")
-                    print(resp.text)
+                    combined_sections.append(f"\n--- {original_url} ---\n{resp.text}")
                 except Exception as err:  # pylint: disable=broad-except
-                    print(f"❌ Failed to fetch '{original_url}': {err}")
+                    sys.stderr.write(f"❌ Failed to fetch '{original_url}': {err}\n")
 
                 # Respect rate limit: sleep ~4 seconds between calls (<=15/minute)
                 if idx < len(filtered_urls) - 1:
                     time.sleep(4.1)
         else:
-            print("\n=== URLs found ===")
-            print("No URLs detected in the model card.")
+            combined_sections.append("\nNo external URLs (after filtering) detected in the model card.")
     else:
-        print("\n=== URLs found ===")
-        print("No URLs detected in the model card.")
+        combined_sections.append("\nNo URLs detected in the model card.")
+
+    # Print the final aggregated output.
+    print("\n".join(combined_sections))
 
 
 if __name__ == "__main__":
