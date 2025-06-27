@@ -26,6 +26,7 @@ Requires:
 """
 import sys
 from huggingface_hub import ModelCard
+import re
 
 
 def main() -> None:  # pragma: no cover
@@ -45,6 +46,20 @@ def main() -> None:  # pragma: no cover
     # Print the markdown content excluding the metadata header.
     print("\n=== README markdown ===")
     print(card.text)
+
+    # Extract and display all URLs found in the markdown body.
+    url_pattern = re.compile(r"https?://[^\s\)\]\>\'\"`]+")
+    urls = url_pattern.findall(card.text)
+
+    if urls:
+        # Preserve order while removing duplicates.
+        unique_urls = list(dict.fromkeys(urls))
+        print("\n=== URLs found ===")
+        for url in unique_urls:
+            print(url)
+    else:
+        print("\n=== URLs found ===")
+        print("No URLs detected in the model card.")
 
 
 if __name__ == "__main__":
