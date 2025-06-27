@@ -84,7 +84,9 @@ def main() -> None:  # pragma: no cover
                 try:
                     resp = requests.get(proxy_url, timeout=15)
                     resp.raise_for_status()
-                    combined_sections.append(f"\n--- {original_url} ---\n{resp.text}")
+                    # Remove URLs from the extracted text to keep output concise.
+                    cleaned_text = url_pattern.sub("", resp.text)
+                    combined_sections.append(f"\n--- {original_url} ---\n{cleaned_text}")
                 except Exception as err:  # pylint: disable=broad-except
                     sys.stderr.write(f"❌ Failed to fetch '{original_url}': {err}\n")
 
