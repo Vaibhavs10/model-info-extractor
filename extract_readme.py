@@ -11,7 +11,7 @@ https://huggingface.co.
 
 Usage::
 
-    python extract_readme.py <model_id>
+    python extract_readme.py <model_id> [<llm_model_id>]
 
 Example::
 
@@ -35,10 +35,16 @@ from huggingface_hub import InferenceClient  # type: ignore
 
 def main() -> None:  # pragma: no cover
     if len(sys.argv) < 2:
-        print("Usage: python extract_readme.py <model_id>")
+        print("Usage: python extract_readme.py <model_id> [<llm_model_id>]")
         sys.exit(1)
 
     model_id = sys.argv[1]
+
+    # Optional: override the LLM model used for summarization.
+    # Defaults to Cohere's Command model hosted on Hugging Face.
+    llm_model_id = (
+        sys.argv[2] if len(sys.argv) >= 3 else "CohereLabs/c4ai-command-a-03-2025"
+    )
 
     try:
         # Load the model card directly from the Hub.
@@ -110,7 +116,7 @@ def main() -> None:  # pragma: no cover
     except KeyError:
         sys.stderr.write("⚠️  HF_TOKEN environment variable not set. Skipping summarization.\n")
     else:
-        client = InferenceClient(provider="cohere", api_key=hf_token)
+        client = InferenceClient(provider="auto", api_key=hf_token)
 
         prompt = f"You are given a lot of information about a machine learning model available on Hugging Face. \
         Create a concise, technical and to the point summary highlighting the technical details, comparisons and instuctions to run the model (if available). \
@@ -119,7 +125,7 @@ def main() -> None:  # pragma: no cover
 
         try:
             completion = client.chat.completions.create(
-                model="CohereLabs/c4ai-command-a-03-2025",
+                model=llm_model_id,
                 messages=[{"role": "user", "content": prompt}],
             )
             print("\n=== SUMMARY ===")
