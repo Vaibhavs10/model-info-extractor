@@ -113,8 +113,9 @@ def main() -> None:  # pragma: no cover
         client = InferenceClient(provider="cohere", api_key=hf_token)
 
         prompt = f"You are given a lot of information about a machine learning model available on Hugging Face. \
-        Create a concise, technical and to the point summary highlighting the technical details, comparisons and instuctions to run the model. \
-            Don't hallucinate and refer only to the content provided to you. Remember to be concise. Here is the information:\n\n{combined_output}"
+        Create a concise, technical and to the point summary highlighting the technical details, comparisons and instuctions to run the model (if available). \
+        Think of the summary as a gist with all the information someone shoudl need to know about the model without overwhelming them. \
+        Don't hallucinate and refer only to the content provided to you. Remember to be concise. Here is the information:\n\n{combined_output}"
 
         try:
             completion = client.chat.completions.create(
