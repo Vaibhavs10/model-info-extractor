@@ -28,6 +28,9 @@ import sys
 from huggingface_hub import ModelCard
 import re
 from urllib.parse import urlparse
+import os
+
+from huggingface_hub import InferenceClient  # type: ignore
 
 
 def main() -> None:  # pragma: no cover
@@ -99,7 +102,29 @@ def main() -> None:  # pragma: no cover
         combined_sections.append("\nNo URLs detected in the model card.")
 
     # Print the final aggregated output.
-    print("\n".join(combined_sections))
+    combined_output = "\n".join(combined_sections)
+
+    # Summarize the collected information using Cohere's LLM via Hugging Face Inference Client.
+    try:
+        hf_token = os.environ["HF_TOKEN"]
+    except KeyError:
+        sys.stderr.write("⚠️  HF_TOKEN environment variable not set. Skipping summarization.\n")
+    else:
+        client = InferenceClient(provider="cohere", api_key=hf_token)
+
+        prompt = f"You are given a lot of information about a machine learning model available on Hugging Face. \
+        Create a concise, technical and to the point summary highlighting the technical details, comparisons and instuctions to run the model. \
+            Don't hallucinate and refer only to the content provided to you. Remember to be concise. Here is the information:\n\n{combined_output}"
+
+        try:
+            completion = client.chat.completions.create(
+                model="CohereLabs/c4ai-command-a-03-2025",
+                messages=[{"role": "user", "content": prompt}],
+            )
+            print("\n=== SUMMARY ===")
+            print(completion.choices[0].message)
+        except Exception as err:  # pylint: disable=broad-except
+            sys.stderr.write(f"❌ Failed to generate summary: {err}\n")
 
 
 if __name__ == "__main__":
