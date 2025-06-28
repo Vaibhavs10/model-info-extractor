@@ -129,7 +129,7 @@ def main() -> None:  # pragma: no cover
                 messages=[{"role": "user", "content": prompt}],
             )
             print("\n=== SUMMARY ===")
-            print(completion.choices[0].message)
+            print(completion.choices[0].message.content)
         except Exception as err:  # pylint: disable=broad-except
             sys.stderr.write(f"❌ Failed to generate summary: {err}\n")
 
