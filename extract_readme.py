@@ -75,8 +75,6 @@ def main() -> None:  # pragma: no cover
 
         # Filter out arxiv, colab, and GitHub links.
         EXCLUDED_KEYWORDS = (
-            "arxiv.org",
-            "ar5iv.org",
             "colab.research.google.com",
             "github.com",
         )
@@ -142,16 +140,33 @@ def main() -> None:  # pragma: no cover
 
             # Optionally open a discussion on the model repo with the summary.
             if open_pr:
+                # Ask the same LLM to craft a short (<10 words) title.
+                title_prompt = (
+                    "Provide a concise, engaging title (under 10 words) "
+                    "for a Hugging Face discussion summarising the model below. "
+                    "Return only the title without quotes or extra text.\n\n" + summary_text
+                )
+
+                try:
+                    title_completion = client.chat.completions.create(
+                        model=llm_model_id,
+                        messages=[{"role": "user", "content": title_prompt}],
+                    )
+                    discussion_title = title_completion.choices[0].message.content.strip()
+                except Exception as err:  # pylint: disable=broad-except
+                    sys.stderr.write(f"⚠️  Failed to generate title with LLM: {err}. Using fallback.\n")
+                    discussion_title = "Model Summary"
+
                 from huggingface_hub import HfApi
 
                 api = HfApi(token=hf_token)
                 try:
                     api.create_discussion(
                         repo_id=model_id,
-                        title="Model Summary and Vibe Checks!",
+                        title=discussion_title,
                         description=summary_text,
                     )
-                    print("✅ Discussion opened on the Hub: 'Model Summary and Vibe Checks!'")
+                    print(f"✅ Discussion opened on the Hub: '{discussion_title}'")
                 except Exception as err:  # pylint: disable=broad-except
                     sys.stderr.write(f"❌ Failed to open discussion: {err}\n")
 
