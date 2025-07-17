@@ -11,7 +11,7 @@ https://huggingface.co.
 
 Usage::
 
-    python extract_readme.py <model_id> [<llm_model_id>]
+    python extract_readme.py <model_id> [<llm_model_id>] [--open-pr]
 
 Example::
 
@@ -35,16 +35,21 @@ from huggingface_hub import InferenceClient  # type: ignore
 
 def main() -> None:  # pragma: no cover
     if len(sys.argv) < 2:
-        print("Usage: python extract_readme.py <model_id> [<llm_model_id>]")
+        print("Usage: python extract_readme.py <model_id> [<llm_model_id>] [--open-pr]")
         sys.exit(1)
 
     model_id = sys.argv[1]
 
-    # Optional: override the LLM model used for summarization.
-    # Defaults to Cohere's Command model hosted on Hugging Face.
-    llm_model_id = (
-        sys.argv[2] if len(sys.argv) >= 3 else "CohereLabs/c4ai-command-a-03-2025"
-    )
+    # Defaults
+    llm_model_id = "CohereLabs/c4ai-command-a-03-2025"
+    open_pr = False
+
+    # Parse optional arguments (order-agnostic)
+    for arg in sys.argv[2:]:
+        if arg == "--open-pr":
+            open_pr = True
+        else:
+            llm_model_id = arg
 
     try:
         # Load the model card directly from the Hub.
@@ -121,6 +126,8 @@ def main() -> None:  # pragma: no cover
         prompt = f"You are given a lot of information about a machine learning model available on Hugging Face. \
         Create a concise, technical and to the point summary highlighting the technical details, comparisons and instuctions to run the model (if available). \
         Think of the summary as a gist with all the information someone shoudl need to know about the model without overwhelming them. \
+        Do not add any text formatting to your output text, keep it simple and plain text. If you have to then sparingly just use markdown for Heading and lists. \
+        Specifically do not use ** to bold text, just use # for headings and - for lists. \
         Don't hallucinate and refer only to the content provided to you. Remember to be concise. Here is the information:\n\n{combined_output}"
 
         try:
@@ -128,8 +135,26 @@ def main() -> None:  # pragma: no cover
                 model=llm_model_id,
                 messages=[{"role": "user", "content": prompt}],
             )
+            summary_text = completion.choices[0].message.content
+
             print("\n=== SUMMARY ===")
-            print(completion.choices[0].message.content)
+            print(summary_text)
+
+            # Optionally open a discussion on the model repo with the summary.
+            if open_pr:
+                from huggingface_hub import HfApi
+
+                api = HfApi(token=hf_token)
+                try:
+                    api.create_discussion(
+                        repo_id=model_id,
+                        title="Model Summary and Vibe Checks!",
+                        description=summary_text,
+                    )
+                    print("✅ Discussion opened on the Hub: 'Model Summary and Vibe Checks!'")
+                except Exception as err:  # pylint: disable=broad-except
+                    sys.stderr.write(f"❌ Failed to open discussion: {err}\n")
+
         except Exception as err:  # pylint: disable=broad-except
             sys.stderr.write(f"❌ Failed to generate summary: {err}\n")
 
