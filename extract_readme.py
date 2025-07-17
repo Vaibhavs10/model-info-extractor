@@ -126,6 +126,7 @@ def main() -> None:  # pragma: no cover
         Think of the summary as a gist with all the information someone shoudl need to know about the model without overwhelming them. \
         Do not add any text formatting to your output text, keep it simple and plain text. If you have to then sparingly just use markdown for Heading and lists. \
         Specifically do not use ** to bold text, just use # for headings and - for lists. \
+        No need to put any contact information in the summary. The summary is supposed to be insightful and information dense and should not be more than 200-300 words. \
         Don't hallucinate and refer only to the content provided to you. Remember to be concise. Here is the information:\n\n{combined_output}"
 
         try:
