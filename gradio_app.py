@@ -77,7 +77,6 @@ def _summarise_external_urls(urls: Sequence[str]) -> List[Tuple[str, str]]:
 def extract_model_info(
     model_id: str,
     llm_model_id: str = "CohereLabs/c4ai-command-a-03-2025",
-    open_pr: bool = False,
 ) -> str:
     """Fetch a Hugging Face model card, analyse it and optionally summarise it.
 
@@ -134,6 +133,7 @@ def extract_model_info(
     # 3. Summarise with LLM (if token available)
     # ------------------------------------------------------------------
     hf_token = os.getenv("HF_TOKEN")
+    summary_text: str | None = None
     if hf_token:
         client = InferenceClient(provider="auto", api_key=hf_token)
         prompt = (
@@ -157,51 +157,12 @@ def extract_model_info(
                 messages=[{"role": "user", "content": prompt}],
             )
             summary_text = completion.choices[0].message.content
-            combined_sections.append("\n=== SUMMARY ===")
-            combined_sections.append(summary_text)
         except Exception as err:  # pylint: disable=broad-except
-            combined_sections.append(f"\n❌ Failed to generate summary: {err}")
+            return f"❌ Failed to generate summary: {err}"
     else:
-        combined_sections.append("\n⚠️  HF_TOKEN environment variable not set. Skipping summarisation.")
-
-    final_output = "\n".join(combined_sections)
-
-    # ------------------------------------------------------------------
-    # 4. Optionally open discussion PR on HF Hub
-    # ------------------------------------------------------------------
-    if open_pr and hf_token:
-        try:
-            # Short title via LLM (best-effort; fallback provided)
-            try:
-                client = InferenceClient(provider="auto", api_key=hf_token)
-                title_prompt = (
-                    "Provide a concise, engaging title (under 10 words) for a Hugging Face "
-                    "discussion summarising the model below. Return only the title without "
-                    "quotes or extra text.\n\n" + summary_text  # type: ignore[name-defined]
-                )
-                title_completion = client.chat.completions.create(
-                    model=llm_model_id,
-                    messages=[{"role": "user", "content": title_prompt}],
-                )
-                discussion_title = title_completion.choices[0].message.content.strip()
-            except Exception:
-                discussion_title = "Model Summary"
-
-            HfApi(token=hf_token).create_discussion(
-                repo_id=model_id,
-                title=discussion_title,
-                description=summary_text,  # type: ignore[name-defined]
-            )
-            combined_sections.append(f"\n✅ Discussion opened on the Hub: '{discussion_title}'")
-            final_output = "\n".join(combined_sections)
-        except Exception as err:  # pylint: disable=broad-except
-            combined_sections.append(f"\n❌ Failed to open discussion: {err}")
-            final_output = "\n".join(combined_sections)
-    elif open_pr and not hf_token:
-        combined_sections.append("\n⚠️  Cannot open discussion: HF_TOKEN not set.")
-        final_output = "\n".join(combined_sections)
-
-    return final_output
+        return "⚠️  HF_TOKEN environment variable not set. Please set it to enable summarisation."
+    # Return only the summary text if available
+    return summary_text or "❌ Summary generation failed for unknown reasons."
 
 
 # -----------------------------------------------------------------------------
@@ -213,7 +174,6 @@ demo = gr.Interface(
     inputs=[
         gr.Textbox(value="bert-base-uncased", label="Model ID"),
         gr.Textbox(value="CohereLabs/c4ai-command-a-03-2025", label="LLM Model ID"),
-        gr.Checkbox(False, label="Open discussion on Hugging Face"),
     ],
     outputs=gr.Textbox(label="Result", lines=25),
     title="Model Card Inspector & Summariser",
